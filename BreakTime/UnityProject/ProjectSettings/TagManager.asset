@@ -1,0 +1,60 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!78 &1
+TagManager:
+  serializedVersion: 2
+  tags:
+  - AudioManager
+  - Bullet
+  - Crate
+  - FollowCam
+  - Cursor
+  layers:
+  - Default
+  - TransparentFX
+  - Ignore Raycast
+  - 
+  - Water
+  - UI
+  - 
+  - 
+  - Env
+  - Ground
+  - Light
+  - Wall
+  - Charactor
+  - Bullet
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  m_SortingLayers:
+  - name: Background
+    uniqueID: 3760291581
+    locked: 0
+  - name: Stars
+    uniqueID: 3607145545
+    locked: 0
+  - name: Ground
+    uniqueID: 579547465
+    locked: 0
+  - name: Default
+    uniqueID: 0
+    locked: 0
+  - name: Bullet
+    uniqueID: 1669175087
+    locked: 0
