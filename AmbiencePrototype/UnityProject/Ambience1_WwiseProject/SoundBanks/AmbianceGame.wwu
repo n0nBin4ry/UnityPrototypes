@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WwiseDocument Type="WorkUnit" ID="{A30FA712-93E7-48C9-AD75-CB8832BC4C98}" SchemaVersion="97">
+	<SoundBanks>
+		<WorkUnit Name="AmbianceGame" ID="{A30FA712-93E7-48C9-AD75-CB8832BC4C98}" PersistMode="Standalone">
+			<ChildrenList>
+				<SoundBank Name="CaveZone" ID="{B24C3FDE-0404-446E-B398-9CC3444D7D53}">
+					<ObjectInclusionList/>
+					<ObjectExclusionList/>
+					<GameSyncExclusionList/>
+				</SoundBank>
+			</ChildrenList>
+		</WorkUnit>
+	</SoundBanks>
+</WwiseDocument>
