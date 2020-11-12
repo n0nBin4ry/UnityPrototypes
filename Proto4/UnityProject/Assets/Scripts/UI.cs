@@ -7,7 +7,9 @@ public class UI : MonoBehaviour
 {
     float timeAlive = 0f;
     public Text timeText;
+	public Text highScoretext;
 	bool stop = false;
+	public HighScore Highscore;
     // Start is called before the first frame update
     void Start()
     {
@@ -17,11 +19,16 @@ public class UI : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-		if (stop)
+		if (stop) {
+			if (timeAlive > Highscore.HighestScore) {
+				Highscore.HighestScore = timeAlive;
+			}
+			highScoretext.text = "Best Time: " + Highscore.HighestScore.ToString("0.00") + " seconds";
 			return;
+		}
         timeAlive += Time.deltaTime;
         string timeAliveString = timeAlive.ToString();
-        timeText.text = "Time alive: " + timeAlive.ToString("0.00");
+        timeText.text = "Time Alive: " + timeAlive.ToString("0.00") + " seconds";
     }
 
 	public void StopTimer() {

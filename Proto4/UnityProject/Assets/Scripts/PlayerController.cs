@@ -1,247 +1,467 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+//using TreeEditor;
+//using UnityEditor.Build;
 using UnityEngine;
 
 public class PlayerController : MonoBehaviour {
+
 	[Header("Jump")]
-	private float m_currJumpCharge = 4f;
-	[SerializeField] private float m_jumpChargeRate = 5f;
-	[SerializeField] private float m_maxJumpForce = 30f;
-	[SerializeField] private float m_minJumpForce = 4f;
+
+	[SerializeField] private GameObject m_JumpOverlayObject;
+	[SerializeField] private JumpTrailObj[] m_JumpOverlayTrailObjs;
+	
+	[SerializeField] private float m_CurrentJumpForce = 4f;
+	[SerializeField] private float m_JumpChargeRate = 6f;
+	[SerializeField] private float m_MaxJumpForce = 30f;
+	[SerializeField] private float m_MinJumpForce = 3f;
+	[SerializeField] private float m_JumpRateIncrease = 5f;
+	[SerializeField] private float m_JumpRateMaxIncrease = 30f;
+	private float m_CurrentMaxJumpForce;
+	private float m_InitialJumpChargeRate;
+
 	[Header("Move")]
-	[SerializeField] private float m_currMoveSpd = 6f;
-	[SerializeField] private float m_moveChangeRate = 2f;
-	[SerializeField] private float m_maxMoveSpd = 16f;
-	[SerializeField] private float m_minMoveSpd = 2f;
+	
+	[SerializeField] private float m_MaxSpeed = 6f;
+	[SerializeField] private float m_TimeToReachMaxSpeed = 0.2f;
+	//[SerializeField] private float m_MovementSpeedChangeRate = 5f;
+	//[SerializeField] private float m_MaxMovementSpeed = 16f;
+	//[SerializeField] private float m_MinMovementSpeed = 2f;
+	
 	[Header("Attack")]
-	private float m_attackRange = 1.5f;
-	[SerializeField] private float m_maxAttackRange = 1.5f;
-	[SerializeField] private float m_minAttackRange = 0.2f;
-	[SerializeField] private float m_attackRangeRate = .1f;
+	
+	[SerializeField] private float m_AttackRange = 1.5f;
+	[SerializeField] private float m_MaxAttackRange = 1.5f;
+	[SerializeField] private float m_MinAttackRange = 0.2f;
+	[SerializeField] private float m_AttackRangeRate = .1f;
 
 	[Header("VFX Values")]
-	[SerializeField] private float defaultLevelHeight = 8.5f;
-	[SerializeField] private float defaultplayerHeight = -4.37f;
-	[SerializeField] private float terminalVelocity = 30f;
-	[SerializeField] private Color safeColor = new Color(56f / 255f, 241f / 255f, 60f / 255f);
-	[SerializeField] private Color dangerColor = new Color(204f / 255f, 32f / 255f, 32f / 255f);
+	
+	[SerializeField] private float m_DefaultLevelHeight = 8.5f;
+	[SerializeField] private float m_DefaultPlayerHeight = -4.37f;
+	[SerializeField] private Color m_SafeColor = new Color(56f / 255f, 241f / 255f, 60f / 255f);
+	[SerializeField] private Color m_DangerColor = new Color(204f / 255f, 32f / 255f, 32f / 255f);
+
+    //SFX
+    [Header("SFX Values")]
+
+    [SerializeField] private AudioSource m_AttackSFX;
+    [SerializeField] private AudioSource m_DeathSFX;
+    [SerializeField] private AudioSource m_HighJumpSFX;
+    [SerializeField] private AudioSource m_LowJumpSFX;
+    [SerializeField] private AudioSource m_KillSFX;
+    [SerializeField] private AudioSource m_SpeedUpSFX;
+    [SerializeField] private AudioSource m_SlowDownSFX;
+
+    // particle effects
+    [Header("Particle Effects")]
+
+    [SerializeField] private ParticleSystem m_SpeedUpParticles;
+    [SerializeField] private ParticleSystem m_SlowDownParticles;
+    [SerializeField] private ParticleSystem m_RangeUpParticles;
+    [SerializeField] private ParticleSystem m_RangeDownParticles;
+
+    // component references
+    Rigidbody2D m_Rigidbody2D = null;
+    //BoxCollider2D m_BoxCollider2D = null;
+	CircleCollider2D m_CircleCollider2D = null;
+	EdgeCollider2D m_EdgeCollider2D = null;
+    GameObject m_SwordObject = null;
+    SpriteRenderer m_SpriteRenderer = null;
 
 	// vars for state and other book-keeping
-	bool m_inAir = true;
-	bool m_jumpPressed = false;
-	bool m_attackPressed = false;
-	bool m_attackHeld = false;
-	bool m_attackReleased = false;
-	bool m_rightHeld = false;
-	bool m_leftHeld = false;
-	bool canMoveRight = true;
-	bool canMoveLeft = true;
-	bool dead = false;
-	bool _didKill = false;
+	private bool m_InAir = true;
+	private bool m_JumpPressed = false;
+	private bool m_AttackPressed = false;
+	private bool m_AttackHeld = false;
+	private bool m_AttackReleased = false;
+	private bool m_DownAttackPressed = false;
+	private bool m_DownAttackHeld = false;
+	private bool m_DownAttackReleased = false;
+	private bool m_CanMoveRight = true;
+	private bool m_CanMoveLeft = true;
+	private bool m_IsDead = false;
+	private bool m_DidKill = false;
+	private bool m_ShouldMoveLeft = false;
+	private bool m_ShouldMoveRight = false;
 
-	// component references
-	Rigidbody2D m_rb = null;
-	BoxCollider2D m_coll = null;
-	GameObject m_sword = null;
-	SpriteRenderer m_renderer = null;
+    //private float m_CurrentMaxJumpForce;
+	//private float m_InitialJumpChargeRate;
+	private float m_AccelerationRate;
 
-	//SFX
-	[Header("SFX Values")]
-	[SerializeField] private AudioSource attackSFX;
-	[SerializeField] private AudioSource deathSFX;
-	[SerializeField] private AudioSource highjumpSFX;
-	[SerializeField] private AudioSource lowjumpSFX;
-	[SerializeField] private AudioSource killSFX;
-	[SerializeField] private AudioSource speedUpSFX;
-	[SerializeField] private AudioSource slowDownSFX;
+	private const float MAX_Y_POSITION = 3.0f;
+	private const float MIN_Y_POSITION = -3.38f;
 
-	// particle effects
-	[Header("Particle Effects")]
-	[SerializeField] ParticleSystem _speedUpParticles;
-	[SerializeField] ParticleSystem _slowDownParticles;
-	[SerializeField] ParticleSystem _rangeUpParticles;
-	[SerializeField] ParticleSystem _rangeDownParticles;
+	[SerializeField] SpriteRenderer m_LavaRenderer;
+	[SerializeField] Material m_BurningMaterial;
+	[SerializeField] Material m_DissolveMaterial;
+	[SerializeField] float m_TimeTillDeath = .20f;
+	float m_CurrDeathTime = 0f;
+	bool m_IsDying = false;
+	bool m_IsBurning = false;
+	bool m_WasLookingLeft = false;
+	Vector3 m_LastPositionAlive;
 
 	// Start is called before the first frame update
-    void Start() {
-		m_rb = GetComponent<Rigidbody2D>();
-		m_coll = GetComponent<BoxCollider2D>();
-		m_sword = GameObject.FindGameObjectWithTag("Sword");
-		m_renderer = GetComponent<SpriteRenderer>();
-		m_attackRange = m_maxAttackRange;
+	void Start() {
+		m_Rigidbody2D = GetComponent<Rigidbody2D>();
+		//m_BoxCollider2D = GetComponent<BoxCollider2D>();
+		m_CircleCollider2D = GetComponent<CircleCollider2D>();
+		m_EdgeCollider2D = GetComponent<EdgeCollider2D>();
+		m_SwordObject = GameObject.FindGameObjectWithTag("Sword");
+		m_SpriteRenderer = GetComponent<SpriteRenderer>();
+		m_AttackRange = m_MaxAttackRange;
+		m_CurrentMaxJumpForce = m_MaxJumpForce;
+		m_InitialJumpChargeRate = m_JumpChargeRate;
+		m_AccelerationRate = m_MaxSpeed / m_TimeToReachMaxSpeed;
     }
 
-    // Update is called once per frame
-    void Update() {
-		if (dead)
+	private void FixedUpdate() {
+		if (m_IsDead)
+        {
+			/*if(m_IsBurning)
+            {
+				transform.position = m_LastPositionAlive;
+				m_CurrDeathTime += Time.deltaTime;
+				float dissolveAmount = 0f;
+				if(m_WasLookingLeft)
+                {
+					dissolveAmount = Mathf.Lerp(-2.5f, 3.5f, m_CurrDeathTime / m_TimeTillDeath);
+				}
+				else
+                {
+					dissolveAmount = Mathf.Lerp(3.5f, -2.5f, m_CurrDeathTime / m_TimeTillDeath);
+				}
+				//Debug.Log("dissolve amount: " + dissolveAmount);
+				m_BurningMaterial.SetFloat("_DissolveAmount", dissolveAmount);
+				if (m_CurrDeathTime >= m_TimeTillDeath)
+				{
+					m_CurrDeathTime = m_TimeTillDeath;
+					m_SpriteRenderer.enabled = false;
+					//Destroy(gameObject);
+				}
+			}*/
 			return;
-
-		// increase jump charge
-		m_currJumpCharge = Mathf.Clamp(m_currJumpCharge + Time.deltaTime * m_jumpChargeRate,
-										m_minJumpForce, m_maxJumpForce);
-
-		// draw charge indicator
-		drawJumpIndicator();
+		}
+		// checks for wall collisions
+		UpdateAllowedMovementDirection();
 
 		// check if walking off platform (no jumping in air)
-		if (!m_inAir && m_rb.velocity.y < 0)
-			m_inAir = true;
+		if (!m_InAir && m_Rigidbody2D.velocity.y < 0)
+			m_InAir = true;
+	}
 
-		// poll player input
-		pollInput();
+	// Update is called once per frame
+	void Update() {
 
-		// process jump
-        processJump();
+		if (m_IsDead)
+        {
+			if (m_IsBurning)
+			{
+				transform.position = m_LastPositionAlive;
+				m_CurrDeathTime += Time.deltaTime;
+				float dissolveAmount = 0f;
+				if (m_WasLookingLeft)
+				{
+					dissolveAmount = Mathf.Lerp(0f, 2.0f, m_CurrDeathTime / m_TimeTillDeath);
+				}
+				else
+				{
+					dissolveAmount = Mathf.Lerp(2.0f, 0f, m_CurrDeathTime / m_TimeTillDeath);
+				}
+				//Debug.Log("dissolve amount: " + dissolveAmount);
+				m_BurningMaterial.SetFloat("_DissolveAmount", dissolveAmount);
+				if (m_CurrDeathTime >= m_TimeTillDeath)
+				{
+					m_CurrDeathTime = m_TimeTillDeath;
+					m_SpriteRenderer.enabled = false;
+					//Destroy(gameObject);
+				}
+			}
+			else
+            {
+				transform.position = m_LastPositionAlive;
+				m_CurrDeathTime += Time.deltaTime;
+				float dissolveAmount = Mathf.Lerp(0f, 0.8f, m_CurrDeathTime / m_TimeTillDeath);
+				m_DissolveMaterial.SetFloat("_DissolveAmount", dissolveAmount);
+				if (m_CurrDeathTime >= m_TimeTillDeath)
+				{
+					m_CurrDeathTime = m_TimeTillDeath;
+					m_SpriteRenderer.enabled = false;
+					//Destroy(gameObject);
+				}
+			}
+			return;
+		}
 
-		// process attack
-		processAttack();
+		// increase jump charge
+		m_CurrentJumpForce = Mathf.Clamp(m_CurrentJumpForce + Time.deltaTime * m_JumpChargeRate,
+										m_MinJumpForce, m_MaxJumpForce);
 
-		// process movement
-		processMovement();
+		// draw charge indicator
+		DrawJumpIndicator();
+
+		/*// check if walking off platform (no jumping in air)
+		if (!m_InAir && m_Rigidbody2D.velocity.y < 0)
+			m_InAir = true;*/
+
+		CheckInput();
+        ProcessJump();
+		ProcessAttack();
+		ProcessMovement();
 
 		// set sword scale based on the attack range
-		m_sword.transform.localScale = new Vector3(m_sword.transform.localScale.x, m_attackRange, m_sword.transform.localScale.z);
+		m_SwordObject.transform.localScale = new Vector3(m_SwordObject.transform.localScale.x, m_AttackRange, m_SwordObject.transform.localScale.z);
 	}
 
 	// polls player input
-	void pollInput() {
-		m_jumpPressed = (Input.GetKey(KeyCode.UpArrow) || Input.GetKey(KeyCode.W));
-		m_rightHeld = (Input.GetKey(KeyCode.RightArrow) || Input.GetKey(KeyCode.D));
-		m_leftHeld = (Input.GetKey(KeyCode.LeftArrow) || Input.GetKey(KeyCode.A));
-		m_attackHeld = (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.Space) || Input.GetKey(KeyCode.RightShift));
-		m_attackPressed = (Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.RightShift));
-		m_attackReleased = (Input.GetKeyUp(KeyCode.LeftShift) || Input.GetKeyUp(KeyCode.Space) || Input.GetKeyUp(KeyCode.RightShift));
-	}
+	void CheckInput() {
+
+		m_JumpPressed = (Input.GetKey(KeyCode.UpArrow) || Input.GetKey(KeyCode.W));
+		
+		m_AttackHeld = (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.Space) || Input.GetKey(KeyCode.RightShift));
+		m_AttackPressed = (Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.RightShift));
+		m_AttackReleased = (Input.GetKeyUp(KeyCode.LeftShift) || Input.GetKeyUp(KeyCode.Space) || Input.GetKeyUp(KeyCode.RightShift));
+
+		m_DownAttackHeld = (Input.GetKey(KeyCode.DownArrow) || Input.GetKey(KeyCode.S));
+		m_DownAttackPressed = (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.S));
+		m_DownAttackReleased = (Input.GetKeyUp(KeyCode.DownArrow) || Input.GetKeyUp(KeyCode.S));
+
+		bool isRightCurrentlyHeld = (Input.GetKey(KeyCode.RightArrow) || Input.GetKey(KeyCode.D));
+        bool isLeftCurrentlyHeld = (Input.GetKey(KeyCode.LeftArrow) || Input.GetKey(KeyCode.A));
+
+        m_ShouldMoveRight = isRightCurrentlyHeld && !isLeftCurrentlyHeld;
+        m_ShouldMoveLeft = !isRightCurrentlyHeld && isLeftCurrentlyHeld;
+    }
+
+	private const float HIGH_JUMP_THRESHOLD = 20.0f;
 
 	// make player jump with height based on jump charge
-	void processJump() {
-		// only jump if input pressed while on ground
-		if (m_inAir || !m_jumpPressed)
+	void ProcessJump() {
+		
+		if (m_InAir || !m_JumpPressed)
 			return;
 
-		//SFX
-		if(m_currJumpCharge >= 20f)
-        {
-			if (highjumpSFX)
-				highjumpSFX.Play();
+		if(m_CurrentJumpForce >= HIGH_JUMP_THRESHOLD && m_HighJumpSFX) {
+			m_HighJumpSFX.Play();
+        } else if(m_LowJumpSFX) {
+			m_LowJumpSFX.Play();
         }
-        else
-        {
-			if (lowjumpSFX)
-				lowjumpSFX.Play();
-        }
-		// apply jump force
-		m_rb.velocity = new Vector2(m_rb.velocity.x, m_currJumpCharge);
-		// mark self off ground
-		m_inAir = true;
-		m_jumpPressed = false;
+
+		m_Rigidbody2D.velocity = new Vector2(m_Rigidbody2D.velocity.x, m_CurrentJumpForce);
+		
+		m_InAir = true;
+		m_JumpPressed = false;
+
 		// reset jump charge
-		m_currJumpCharge = m_minJumpForce;
+		m_CurrentJumpForce = m_MinJumpForce;
 
 		// if we arent at lowest range, decrease range
-		if (m_attackRange > m_minAttackRange) {
+		if (m_AttackRange > m_MinAttackRange) {
+
 			// show sword decrease range effect
-			if (_rangeDownParticles)
-			_rangeDownParticles.Play();
+			if (m_RangeDownParticles)
+				m_RangeDownParticles.Play();
+
 			// reduce the attack range
-			m_attackRange = Mathf.Clamp(m_attackRange - m_attackRangeRate, m_minAttackRange, m_attackRange);
-			//m_sword.transform.localScale = new Vector3(m_sword.transform.localScale.x, m_attackRange, m_sword.transform.localScale.z);
+			m_AttackRange = Mathf.Clamp(m_AttackRange - m_AttackRangeRate, m_MinAttackRange, m_AttackRange);
 		}
 	}
 
 	// make player attack and affect other stats
-	void processAttack() {
-		// move sword up when not active
-		if (!m_attackHeld) {
-			m_sword.transform.rotation = Quaternion.identity;
-			m_sword.transform.position = transform.position + new Vector3(0, m_coll.bounds.extents.y, 0);
-		}
-		// when sword pressed, move it on front of player
-		if (m_attackHeld) {
-			m_sword.transform.rotation = Quaternion.AngleAxis(-90f * Mathf.Sign(transform.localScale.x), Vector3.forward);
-			m_sword.transform.position = transform.position + new Vector3(m_coll.bounds.extents.x * Mathf.Sign(transform.localScale.x), 0, 0);
-		}
-		// when pressed, the jump height resets, and speed reduces
-		if (m_attackPressed) {
-			// reset kill check
-			_didKill = false;
-			if (attackSFX) {
-				attackSFX.Play();
+	void ProcessAttack() {
+
+		Quaternion swordRotation = (!m_AttackHeld)? Quaternion.identity: Quaternion.AngleAxis(-90f * Mathf.Sign(transform.localScale.x), Vector3.forward);
+		m_SwordObject.transform.rotation = swordRotation;
+
+		//Vector3 swordPositionOffset = (!m_AttackHeld)? new Vector3(0, m_BoxCollider2D.bounds.extents.y, 0): new Vector3(m_BoxCollider2D.bounds.extents.x * Mathf.Sign(transform.localScale.x), 0, 0);
+		Vector3 swordPositionOffset = (!m_AttackHeld) ? new Vector3(0, m_CircleCollider2D.bounds.extents.y, 0) : new Vector3(m_CircleCollider2D.bounds.extents.x * Mathf.Sign(transform.localScale.x), 0, 0);
+		m_SwordObject.transform.position = transform.position + swordPositionOffset;
+
+		if (m_AttackPressed) { // when pressed, the jump height resets, and speed reduces
+
+			m_DidKill = false; // reset kill check
+
+			if (m_AttackSFX) {
+				m_AttackSFX.Play();
             }
-			/*if (_slowDownParticles) {
-				_slowDownParticles.Play();
-			}
-			m_currMoveSpd = Mathf.Clamp(m_currMoveSpd - m_moveChangeRate, m_minMoveSpd, m_maxMoveSpd);*/
-			m_currJumpCharge = m_minJumpForce;
-		}
-		// when attack released, apply slowdown if no enemies killed
-		if (m_attackReleased && !_didKill) {
-			if (_slowDownParticles) {
-				_slowDownParticles.Play();
-			}
-			m_currMoveSpd = Mathf.Clamp(m_currMoveSpd - m_moveChangeRate, m_minMoveSpd, m_maxMoveSpd);
-			// TODO: add slow-down sound effect
-			if (slowDownSFX)
-				slowDownSFX.Play();
+			
+			m_CurrentJumpForce = m_MinJumpForce;
+		
+		} else if (m_AttackReleased && !m_DidKill && m_JumpChargeRate != m_JumpRateMaxIncrease) { // when attack released, apply increase charge rate if no kill
+			m_JumpChargeRate = Mathf.Clamp(m_JumpChargeRate + m_JumpRateIncrease, m_JumpChargeRate, m_JumpRateMaxIncrease);
+
+			// NOTE: test using speed-up sound to test increase jump effect
+			if (m_SpeedUpSFX)
+				m_SpeedUpSFX.Play();
+			foreach (var trail in m_JumpOverlayTrailObjs)
+				trail.ShowSpeedUp();
+
+			// TODO: Probably should replace the sound effects at some point with something that works better for increasing jump charge rate
+
+			/*if (m_SlowDownParticles)
+				m_SlowDownParticles.Play();
+
+			//m_MaxSpeed = Mathf.Clamp(m_MaxSpeed - m_MovementSpeedChangeRate, m_MinMovementSpeed, m_MaxMovementSpeed);
+
+			if (m_SlowDownSFX)
+				m_SlowDownSFX.Play();*/
 		}
 	}
 
 	// make player move
-	void processMovement() {
-		short temp = 0;
-		if (m_rightHeld)
-			temp++;
-		if (m_leftHeld)
-			temp--;
+	void ProcessMovement() {
 		
-		// turn facing based on input
-		// if turning left
-		if (temp < 0 && Mathf.Sign(transform.localScale.x) > 0) {
-			transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
+		bool isCurrentlyLookingRight = Mathf.Sign(transform.localScale.x) > 0;
+		bool isCurrentlyLookingLeft = Mathf.Sign(transform.localScale.x) < 0;
+
+		bool shouldFlipXFacingDirection = (m_ShouldMoveRight && isCurrentlyLookingLeft) || (m_ShouldMoveLeft && isCurrentlyLookingRight);
+
+		if (shouldFlipXFacingDirection) {
+			transform.localScale = new Vector3(-transform.localScale.x, transform.localScale.y, transform.localScale.z);
 		}
-		// if turning right
-		else if (temp > 0 && Mathf.Sign(transform.localScale.x) < 0) {
-			transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
-		}
+		// the code above simply handles facing in the direction of input
 
 		// can't move if attacking
-		if (m_attackHeld)
+		if (m_AttackHeld)
 			return;
 
-		// if moving left but were blocked, check if we are free now
-		RaycastHit2D[] hits = new RaycastHit2D[1];
-		if (temp < 0 && !canMoveLeft && m_coll.Cast(Vector2.left, hits, .1f) < 1)
-			canMoveLeft = true;
-		// if moving right but were blocked, check if we are free now
-		if (temp > 0 && !canMoveRight && m_coll.Cast(Vector2.right, hits, .1f) < 1)
-			canMoveRight = true;
+		//UpdateAllowedMovementDirection();
 
 		// get input based on if we can move left/right
-		temp = 0;
-		if (m_rightHeld && canMoveRight)
-			temp++;
-		if (m_leftHeld && canMoveLeft)
-			temp--;
+		short movementDirectionScalar = 0;
+		if (m_ShouldMoveRight && m_CanMoveRight) {
+			movementDirectionScalar = 1; m_CanMoveLeft = true;
+		} else if (m_ShouldMoveLeft && m_CanMoveLeft) {
+			movementDirectionScalar = -1; m_CanMoveRight = true;
+		}
 
-		// allow right-ward movement if was blocked
-		if (temp < 0) {
-			canMoveRight = true;
-		}
-		// allow left-ward movement if was blocked
-		else if (temp > 0) {
-			canMoveLeft = true;
-		}
+		Vector2 currentVelocity = m_Rigidbody2D.velocity;
+
+		bool isAcceleratingRight = (movementDirectionScalar > 0 && currentVelocity.x < m_MaxSpeed);
+		bool isDeacceleratingLeft = (movementDirectionScalar == 0 && currentVelocity.x < 0);
+
+		bool shouldAccelerateRight = isAcceleratingRight || isDeacceleratingLeft;
+
+		bool isAcceleratingLeft = (movementDirectionScalar < 0 && currentVelocity.x > -m_MaxSpeed);
+		bool isDeacceleratingRight = (movementDirectionScalar == 0 && currentVelocity.x > 0);
+
+		bool shouldAccelerateLeft = isAcceleratingLeft || isDeacceleratingRight;
+
+		float powerVal = (isDeacceleratingRight || isDeacceleratingLeft)? 1.8f: 0.6f;
+
+		if (shouldAccelerateRight) {
+			currentVelocity.x += Mathf.Pow(m_AccelerationRate * Time.deltaTime, powerVal);
+        } else if(shouldAccelerateLeft) {
+			currentVelocity.x -= Mathf.Pow(m_AccelerationRate * Time.deltaTime, powerVal);
+        }
+
+		currentVelocity.x = Mathf.Clamp(currentVelocity.x, -m_MaxSpeed, m_MaxSpeed);
 
 		// move left-right based on move speed and input
-		m_rb.velocity = new Vector2(temp * m_currMoveSpd, m_rb.velocity.y);
+		m_Rigidbody2D.velocity = currentVelocity;
+	}
+
+	private void UpdateAllowedMovementDirection() {
+        // if moving left but were blocked, check if we are free now
+        RaycastHit2D[] hits = new RaycastHit2D[1];
+
+		//if (m_Rigidbody2D.velocity.y >= 0) {
+			//if (m_ShouldMoveLeft && !m_CanMoveLeft && m_BoxCollider2D.Cast(Vector2.left, hits, .1f) < 1)
+			if (m_ShouldMoveLeft && !m_CanMoveLeft && m_CircleCollider2D.Cast(Vector2.left, hits, .1f) < 1)
+				m_CanMoveLeft = true;
+			else if (m_ShouldMoveLeft && !m_CanMoveLeft) { 
+				foreach (var hit in hits) { 
+					if (hit.transform.tag == "Hazard") {
+						m_CanMoveLeft = true;
+						break;
+					}
+				}
+			} 
+		/*}
+		else {
+			if (m_ShouldMoveLeft && !m_CanMoveLeft && m_EdgeCollider2D.Cast(Vector2.left, hits, .1f) < 1)
+				m_CanMoveLeft = true;
+			else if (m_ShouldMoveLeft && !m_CanMoveLeft) {
+				foreach (var hit in hits) {
+					if (hit.transform.tag == "Hazard") {
+						m_CanMoveLeft = true;
+						break;
+					}
+				}
+			}
+		}*/
+
+		//if (m_Rigidbody2D.velocity.y >= 0) {
+			//if (m_ShouldMoveRight && !m_CanMoveRight && m_BoxCollider2D.Cast(Vector2.right, hits, .1f) < 1)
+			if (m_ShouldMoveRight && !m_CanMoveRight && m_CircleCollider2D.Cast(Vector2.right, hits, .1f) < 1)
+				m_CanMoveRight = true;
+			else if (m_ShouldMoveRight && !m_CanMoveRight) {
+				foreach (var hit in hits) {
+					if (hit.transform.tag == "Hazard") {
+						m_CanMoveRight = true;
+						break;
+					}
+				}
+			}
+		/*}
+		else {
+			if (m_ShouldMoveRight && !m_CanMoveRight && m_EdgeCollider2D.Cast(Vector2.right, hits, .1f) < 1)
+				m_CanMoveRight = true;
+			else if (m_ShouldMoveRight && !m_CanMoveRight) {
+				foreach (var hit in hits) {
+					if (hit.transform.tag == "Hazard") {
+						m_CanMoveRight = true;
+						break;
+					}
+				}
+			}
+		}*/
+
+		// if considered in air and falling, check if we are actually landing on ground
+		//if (m_InAir && m_Rigidbody2D.velocity.y <= 0 && m_BoxCollider2D.Cast(Vector2.down, hits, .1f) >= 1) {
+		if (m_InAir && m_Rigidbody2D.velocity.y <= 0 && m_CircleCollider2D.Cast(Vector2.down, hits, .1f) >= 1) {
+			foreach (var hit in hits) {
+				if (hit.collider.gameObject.transform.position.y + hit.collider.bounds.extents.y > transform.position.y - m_CircleCollider2D.bounds.extents.y)
+				//if (hit.transform.position.y > transform.position.y)
+					continue;
+				if (hit.transform.tag == "Ground" || hit.transform.tag == "Obstacle") {
+					m_InAir = false;
+					m_Rigidbody2D.velocity = new Vector2(m_Rigidbody2D.velocity.x, 0);
+					//float newDist = hit.point.y - (transform.position.y - m_CircleCollider2D.bounds.extents.y);
+					//if (newDist > 0f)
+						//transform.Translate(Vector2.up * newDist);
+					break;
+				}
+			}
+		}
 	}
 
 	// draw's indicator of how dangerous jump charge is
-	void drawJumpIndicator() {
-		float percentage = m_currJumpCharge / terminalVelocity;
-		m_renderer.color = new Color((safeColor.r * (1 - percentage)) + (dangerColor.r * percentage),
-									(safeColor.g * (1 - percentage)) + (dangerColor.g * percentage),
-									(safeColor.b * (1 - percentage)) + (dangerColor.b * percentage));
+	void DrawJumpIndicator() {
+		float percentage = m_CurrentJumpForce / m_CurrentMaxJumpForce;
+
+		Color currentCubeColor = new Color((m_SafeColor.r * (1 - percentage)) + (m_DangerColor.r * percentage),
+                                    (m_SafeColor.g * (1 - percentage)) + (m_DangerColor.g * percentage),
+                                    (m_SafeColor.b * (1 - percentage)) + (m_DangerColor.b * percentage));
+
+		m_SpriteRenderer.color = currentCubeColor;
+
+		// NOTE: reducing the value because I realize that the predictive value over-estimates a little bit, leaving players feeling tricked
+		float timeTillMaxJumpHeight = (-m_CurrentJumpForce / (Physics2D.gravity.y * m_Rigidbody2D.gravityScale)) * .75f;
+		float peakJumpYPosition = transform.position.y + m_CurrentJumpForce * timeTillMaxJumpHeight + (0.5f * m_Rigidbody2D.gravityScale) * Physics2D.gravity.y * Mathf.Pow(timeTillMaxJumpHeight, 2.0f);
+
+		peakJumpYPosition = Mathf.Clamp(peakJumpYPosition, MIN_Y_POSITION, MAX_Y_POSITION);
+
+		Vector3 peakJumpPosition = new Vector3(transform.position.x, peakJumpYPosition, transform.position.z);
+
+		m_JumpOverlayObject.transform.position = peakJumpPosition;
+
+		SpriteRenderer jumpOverlaySpriteRenderer = m_JumpOverlayObject.GetComponent<SpriteRenderer>();
+		currentCubeColor.a = jumpOverlaySpriteRenderer.color.a;
+		jumpOverlaySpriteRenderer.color = currentCubeColor;
+		foreach (var trail in m_JumpOverlayTrailObjs)
+			trail.SetColor(currentCubeColor);
 	}
 
 	// process special collision events
@@ -250,91 +470,216 @@ public class PlayerController : MonoBehaviour {
 		if (collision.gameObject.tag == "Sword")
 			return;
 
-		// check if we die
-		if (collision.gameObject.tag == "Hazard" || collision.gameObject.tag == "Enemy") {
-			if(deathSFX)
-            {
-				deathSFX.Play();
-            }
-			die();
+		bool playerShouldDie = collision.gameObject.tag == "Hazard";
+		// only die from enemy if the enemy is not dead
+		if (!playerShouldDie && collision.gameObject.tag == "Enemy" && !collision.gameObject.GetComponent<Enemy>().IsDead())
+			playerShouldDie = true;
+
+		if (playerShouldDie) {
+
+			KillPlayer();
+			
+			if (m_DeathSFX)
+				m_DeathSFX.Play();
+
 			return;
 		}
 
 
-		var contact = collision.contacts[0];
 		// check if we land on top of something; if we do, mark on ground and update terminal velocity
-		if (m_inAir && contact.normal == Vector2.up) {
-			m_inAir = false;
-			setNewTerminalVel();
-		}
+		foreach (var contact in collision.contacts) {
+				bool didPlayerLand = m_InAir && Vector2.Angle(contact.normal, Vector2.up) <= 60f;
+				//bool didPlayerLand = m_InAir && contact.normal == Vector2.up;
 
-		// if we are colliding with the ground, no horrizontal checks
-		if (collision.gameObject.tag == "Ground")
-			return;
-		else if (m_rightHeld && canMoveRight && contact.normal == Vector2.left) {
-			m_rb.velocity = new Vector2(0, m_rb.velocity.y);
-			canMoveRight = false;
+				if (didPlayerLand) {
+					SetCurrentMaxJumpForce(); m_InAir = false;
+				}
+
+			// if we are colliding with the ground, no horrizontal checks
+			if (collision.gameObject.tag == "Ground")
+				return;
+
+			/*//bool isCollidingWithRightWall = m_ShouldMoveRight && m_CanMoveRight && contact.normal == Vector2.left;
+			bool isCollidingWithRightWall = m_ShouldMoveRight && m_CanMoveRight && Vector2.Angle(contact.normal, Vector2.left) <= 60f;
+
+			//bool isCollidingWithLeftWall = m_ShouldMoveLeft && m_CanMoveLeft && contact.normal == Vector2.right;
+			bool isCollidingWithLeftWall = m_ShouldMoveLeft && m_CanMoveLeft && Vector2.Angle(contact.normal, Vector2.right) <= 60f;
+
+			if (isCollidingWithLeftWall || isCollidingWithRightWall) {
+            
+				m_Rigidbody2D.velocity = new Vector2(0, m_Rigidbody2D.velocity.y);
+
+				if (isCollidingWithLeftWall) {
+					m_CanMoveLeft = false; 
+				} else {
+					m_CanMoveRight = false;
+				}
+			}*/
+
+			// break out early if we got all we need
+			//if (!m_InAir && (isCollidingWithLeftWall || isCollidingWithRightWall))
+			if (!m_InAir)
+				break;
 		}
-		else if (m_leftHeld && canMoveLeft && contact.normal == Vector2.right) {
-			m_rb.velocity = new Vector2(0, m_rb.velocity.y);
-			canMoveLeft = false;
+	}
+
+	private void OnCollisionStay2D(Collision2D collision) {
+
+		// only do side checks if we are in the the air
+		if (!m_InAir)
+			return;
+		 foreach (var contact in collision.contacts) {
+			bool isCollidingWithRightWall = m_ShouldMoveRight && m_CanMoveRight && Vector2.Angle(contact.normal, Vector2.left) <= 60f;
+
+			bool isCollidingWithLeftWall = m_ShouldMoveLeft && m_CanMoveLeft && Vector2.Angle(contact.normal, Vector2.right) <= 60f;
+
+			if (isCollidingWithLeftWall || isCollidingWithRightWall) {
+
+				m_Rigidbody2D.velocity = new Vector2(0, m_Rigidbody2D.velocity.y);
+
+				if (isCollidingWithLeftWall) {
+					m_CanMoveLeft = false;
+				}
+				else {
+					m_CanMoveRight = false;
+				}
+				break;
+			}
 		}
 	}
 
 	// sets new terminal velocity based on where player is standing
-	void setNewTerminalVel() {
-		terminalVelocity = m_maxJumpForce - (m_maxJumpForce * (transform.position.y - defaultplayerHeight) / defaultLevelHeight);
+	void SetCurrentMaxJumpForce() {
+		m_CurrentMaxJumpForce = m_MaxJumpForce - (m_MaxJumpForce * (transform.position.y - m_DefaultPlayerHeight) / m_DefaultLevelHeight);
 	}
 
 	// changes stats when a kill is done; to be called by the victims
-	public void processKill() {
+	public void ProcessKill() {
+
 		// show sword effect of reseting range if the range is not max yet
-		if (_rangeUpParticles && m_attackRange != m_maxAttackRange)
-			_rangeUpParticles.Play();
+		if (m_RangeUpParticles && m_AttackRange != m_MaxAttackRange)
+			m_RangeUpParticles.Play();
+		
 		// reset attack range
-		m_attackRange = m_maxAttackRange;
-		//m_sword.transform.localScale = new Vector3(m_sword.transform.localScale.x, m_attackRange, m_sword.transform.localScale.z);
-		// increase speed
-		//m_currMoveSpd = Mathf.Clamp(m_currMoveSpd + (m_moveChangeRate * 2), m_currMoveSpd, m_maxMoveSpd);
-		m_currMoveSpd = Mathf.Clamp(m_currMoveSpd + m_moveChangeRate, m_currMoveSpd, m_maxMoveSpd);
+		m_AttackRange = m_MaxAttackRange;
+		//m_MaxSpeed = Mathf.Clamp(m_MaxSpeed + m_MovementSpeedChangeRate, m_MaxSpeed, m_MaxMovementSpeed);
+		
 		// maek that we killed so that we don't slow down
-		_didKill = true;
+		m_DidKill = true;
+		
 		// play sound
-		if (killSFX)
-			killSFX.Play();
-		// show particle effects for speeding up
-		if (!dead && _speedUpParticles) {
-			if (_slowDownParticles && _slowDownParticles.isPlaying) {
-				_slowDownParticles.Stop();
-			}
-			_speedUpParticles.Play();
-			// play sound effect too
-			if (speedUpSFX)
-				speedUpSFX.Play();
+		if (m_KillSFX)
+			m_KillSFX.Play();
+
+		// NOTE: testing the speed down sound for reducing jump-charge speed
+		if (m_JumpChargeRate != m_InitialJumpChargeRate) {
+			if (m_SlowDownSFX)
+				m_SlowDownSFX.Play();
+			foreach (var trail in m_JumpOverlayTrailObjs)
+				trail.ShowSlowDown();
+			// reset jump charge rate
+			m_JumpChargeRate = m_InitialJumpChargeRate;
 		}
+
+		/*// show particle effects for speeding up
+		if (!m_IsDead && m_SpeedUpParticles) {
+
+			if (m_SlowDownParticles && m_SlowDownParticles.isPlaying)
+				m_SlowDownParticles.Stop();
+			
+			if(m_SpeedUpParticles)
+				m_SpeedUpParticles.Play();
+			
+			if (m_SpeedUpSFX)
+				m_SpeedUpSFX.Play();
+		}*/
 	}
 
-	// die
-	public void die() {
-		// die; DIE!
+	// called upon player death
+	public void KillPlayer() {
+		
 		Debug.Log("Dead");
-		Camera.main.GetComponent<CameraController>().playerDead = true;
-		if (deathSFX)
-			deathSFX.Play();
-		Camera.main.GetComponent<CameraController>().showFinalScore();
-		//GameObject.Destroy(gameObject);
-		m_coll.enabled = false;
-		m_rb.simulated = false;
-		m_renderer.enabled = false;
-		m_sword.GetComponent<SpriteRenderer>().enabled = false;
-		dead = true;
+		
+		if (m_DeathSFX)
+			m_DeathSFX.Play();
+
+        Camera.main.GetComponent<CameraController>().ShowFinalScore();
+
+		float percentage = m_CurrentJumpForce / m_CurrentMaxJumpForce;
+		Color currentCubeColor = new Color((m_SafeColor.r * (1 - percentage)) + (m_DangerColor.r * percentage),
+									(m_SafeColor.g * (1 - percentage)) + (m_DangerColor.g * percentage),
+									(m_SafeColor.b * (1 - percentage)) + (m_DangerColor.b * percentage));
+		currentCubeColor.a = 0f;
+
+		//m_BoxCollider2D.enabled = false;
+		m_CircleCollider2D.enabled = false;
+		m_Rigidbody2D.simulated = false;
+		m_SpriteRenderer.material = m_DissolveMaterial;
+		m_DissolveMaterial.SetColor("_MainColor", currentCubeColor);
+		m_DissolveMaterial.SetFloat("_DissolveAmount", 0f);
+		//m_SpriteRenderer.enabled = false;
+		m_SwordObject.GetComponent<SpriteRenderer>().enabled = false;
+		m_LastPositionAlive = transform.position;
+		m_IsBurning = false;
+		m_IsDead = true;
+
+		if (m_JumpOverlayObject) m_JumpOverlayObject.SetActive(false);
+
+		if (m_LavaRenderer) m_LavaRenderer.color = Color.black;
+		
 		// turn off particles
-		if (_rangeDownParticles) Destroy(_rangeDownParticles);
-		if (_rangeUpParticles) Destroy(_rangeUpParticles);
-		if (_speedUpParticles) Destroy(_speedUpParticles);
-		if (_slowDownParticles) Destroy(_slowDownParticles);
+		if (m_RangeDownParticles) Destroy(m_RangeDownParticles);
+		if (m_RangeUpParticles) Destroy(m_RangeUpParticles);
+		if (m_SpeedUpParticles) Destroy(m_SpeedUpParticles);
+		if (m_SlowDownParticles) Destroy(m_SlowDownParticles);
+
+		foreach (var trail in m_JumpOverlayTrailObjs)
+			Destroy(trail.gameObject);
 	}
 
-	// accessors
-	//public bool isInAir() { return m_inAir; }
+	public void Burn()
+    {
+		Debug.Log("burned");
+		if (m_DeathSFX)
+			m_DeathSFX.Play();
+
+		Camera.main.GetComponent<CameraController>().ShowFinalScore();
+
+		m_CircleCollider2D.enabled = false;
+		//m_BoxCollider2D.enabled = false;
+		m_Rigidbody2D.simulated = false;
+		float percentage = m_CurrentJumpForce / m_CurrentMaxJumpForce;
+		Color currentCubeColor = new Color((m_SafeColor.r * (1 - percentage)) + (m_DangerColor.r * percentage),
+									(m_SafeColor.g * (1 - percentage)) + (m_DangerColor.g * percentage),
+									(m_SafeColor.b * (1 - percentage)) + (m_DangerColor.b * percentage));
+		currentCubeColor.a = 0f;
+		m_SpriteRenderer.material = m_BurningMaterial;
+		m_BurningMaterial.SetColor("_MainColor", currentCubeColor);
+		//m_SpriteRenderer.enabled = false;
+		m_SwordObject.GetComponent<SpriteRenderer>().enabled = false;
+		m_LastPositionAlive = transform.position;
+		m_IsBurning = true;
+		m_IsDead = true;
+
+		bool isCurrentlyLookingLeft = Mathf.Sign(transform.localScale.x) < 0;
+		if(isCurrentlyLookingLeft)
+        {
+			m_BurningMaterial.SetFloat("_DissolveAmount", 0f);
+			m_WasLookingLeft = true;
+		}
+		else
+        {
+			m_BurningMaterial.SetFloat("_DissolveAmount", 2.0f);
+			m_WasLookingLeft = false;
+		}
+
+		if (m_JumpOverlayObject) m_JumpOverlayObject.SetActive(false);
+
+		if (m_LavaRenderer) m_LavaRenderer.color = Color.black;
+
+		if (m_RangeDownParticles) Destroy(m_RangeDownParticles);
+		if (m_RangeUpParticles) Destroy(m_RangeUpParticles);
+		if (m_SpeedUpParticles) Destroy(m_SpeedUpParticles);
+		if (m_SlowDownParticles) Destroy(m_SlowDownParticles);
+	}
 }

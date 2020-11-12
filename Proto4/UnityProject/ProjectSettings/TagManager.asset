@@ -12,6 +12,7 @@ TagManager:
   - Ground
   - Obstacle
   - Hazard
+  - Lava
   layers:
   - Default
   - TransparentFX
